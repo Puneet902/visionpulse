@@ -21,7 +21,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ OASIS - Real-time Security & Surveillance")
+st.title(" Real-time Security & Surveillance")
 
 # --- Registered Faces DB ---
 DB_PATH = "registered_faces"
