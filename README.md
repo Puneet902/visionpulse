@@ -1,4 +1,4 @@
-# 🛡 OASIS Edge AI Unit
+# 🛡 visionplus Real-time Security & Surveillance
 
 This is a real-time AI security & surveillance app built with:
 
