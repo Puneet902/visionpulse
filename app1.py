@@ -8,7 +8,7 @@ import yt_dlp
 import pandas as pd
 
 # --- Page Config and Styling ---
-st.set_page_config(page_title="OASIS Edge AI Unit", layout="wide")
+st.set_page_config(page_title="Real-time Security & Surveillance", layout="wide")
 
 st.markdown("""
     <style>
