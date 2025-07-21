@@ -1,6 +1,9 @@
 streamlit
 opencv-python
 ultralytics
-deepface
-yt-dlp
 pandas
+psycopg2-binary
+deepface
+firebase-admin
+python-multipart
+email-validator
