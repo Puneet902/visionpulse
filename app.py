@@ -4,8 +4,9 @@ from ultralytics import YOLO
 from datetime import datetime
 import os
 from deepface import DeepFace
-import yt_dlp
 import pandas as pd
+import psycopg2
+import time
 
 # --- Page Config and Styling ---
 st.set_page_config(page_title="OASIS Edge AI Unit", layout="wide")
@@ -16,7 +17,6 @@ st.markdown("""
     h1, h2, h3 { color: #FFFFFF; }
     .stExpander { border-radius: 10px; border: 2px solid #4A4A4A; }
     .stExpander[aria-expanded="true"] { border-color: #4CAF50; }
-    .threat-alert[aria-expanded="true"] { border-color: #e63946; }
     .stButton>button { width: 100%; border: 2px solid #4A4A4A; background-color: #262730; color: #FAFAFA; }
     .stButton>button:hover { border-color: #e63946; color: #e63946; }
     .stFileUploader { background-color: #262730; border-radius: 10px; padding: 15px; }
@@ -25,16 +25,46 @@ st.markdown("""
 
 st.title("🛡 Real-time Security & Surveillance")
 
-# --- Registered Faces DB ---
+# --- Paths ---
 DB_PATH = "registered_faces"
+SNAPSHOT_DIR = "snapshots"
+
 if not os.path.exists(DB_PATH):
     os.makedirs(DB_PATH)
+if not os.path.exists(SNAPSHOT_DIR):
+    os.makedirs(SNAPSHOT_DIR)
+
+# --- Database Connection ---
+def get_db_connection():
+    return psycopg2.connect(
+        host="localhost",
+        database="vision_alerts",
+        user="postgres",
+        password="your_password_here"
+    )
+
+# --- Ensure alerts table exists ---
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS alerts (
+            id SERIAL PRIMARY KEY,
+            timestamp TIMESTAMP,
+            object_type TEXT,
+            camera_id TEXT,
+            image_path TEXT
+        )
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+init_db()
 
 # --- Session State ---
 if 'run_stream' not in st.session_state:
     st.session_state.run_stream = False
-if 'alerts' not in st.session_state:
-    st.session_state.alerts = []
 if 'live_history' not in st.session_state:
     st.session_state.live_history = []
 
@@ -47,18 +77,6 @@ def load_models():
 
 vehicle_model, weapon_model = load_models()
 
-# --- YouTube Stream Link Extractor ---
-def get_direct_stream_link(youtube_url):
-    try:
-        ydl_opts = {'quiet': True, 'no_warnings': True, 'format': 'best'}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info_dict = ydl.extract_info(youtube_url, download=False)
-            stream_url = info_dict.get("url", None)
-            return stream_url
-    except Exception as e:
-        st.error(f"❌ Error extracting stream link: {e}")
-        return None
-
 # --- Tabs ---
 tab1, tab2, tab3 = st.tabs(["🔴 Live Detection", "👤 Face Registration", "🚨 Full Alerts Log"])
 
@@ -66,35 +84,10 @@ tab1, tab2, tab3 = st.tabs(["🔴 Live Detection", "👤 Face Registration", "�
 with tab1:
     st.header("Live Monitoring (Vehicles + Weapons + Face Recognition)")
 
-    source_type = st.radio("Choose Video Source:", ["YouTube Live Stream", "Webcam"])
-    stream_url = None
-
-    if source_type == "YouTube Live Stream":
-        youtube_url = st.text_input(
-            "📺 Paste YouTube Live URL:",
-            placeholder="https://www.youtube.com/watch?v=...",
-            key="youtube_url_input"
-        )
-        if youtube_url:
-            if "youtube.com/watch" in youtube_url:
-                with st.spinner("Extracting stream link..."):
-                    stream_url = get_direct_stream_link(youtube_url)
-                if stream_url:
-                    st.success(f"✅ Stream URL Ready!")
-                else:
-                    st.error("❌ Could not extract stream URL. Check if the video is public/live.")
-            else:
-                st.warning("⚠ Please provide a valid YouTube link.")
-    elif source_type == "Webcam":
-        stream_url = 0
-
     btn_col1, btn_col2 = st.columns(2)
-    if btn_col1.button("▶ Start Stream"):
-        if stream_url is not None:
-            st.session_state.run_stream = True
-        else:
-            st.warning("Please provide a valid video source first.")
-    if btn_col2.button("⏹ Stop Stream"):
+    if btn_col1.button("▶ Start Webcam"):
+        st.session_state.run_stream = True
+    if btn_col2.button("⏹ Stop Webcam"):
         st.session_state.run_stream = False
         st.session_state.live_history = []
 
@@ -102,121 +95,116 @@ with tab1:
     frame_placeholder = frame_col.empty()
     summary_placeholder = summary_col.empty()
 
-    if st.session_state.run_stream and stream_url is not None:
-        cap = cv2.VideoCapture(stream_url)
+    if st.session_state.run_stream:
+        cap = cv2.VideoCapture(0)
 
         if not cap.isOpened():
-            st.error("⚠ Unable to open video source.")
+            st.error("⚠ Unable to access the webcam.")
         else:
             last_threat_alert_time = {}
+            frame_count = 0
 
             while st.session_state.run_stream:
                 ret, frame = cap.read()
                 if not ret:
-                    st.warning("⚠ Stream ended or could not read frame.")
+                    st.warning("⚠ Could not read frame from webcam.")
                     st.session_state.run_stream = False
                     break
 
+                # ✅ Resize frame to speed up detection
+                frame = cv2.resize(frame, (640, 480))
                 annotated_frame = frame.copy()
+                frame_count += 1
 
-                # --- VEHICLE DETECTION ---
-                results_vehicle = vehicle_model(frame, verbose=False, conf=0.3)
-                for r in results_vehicle:
-                    for box in r.boxes:
-                        class_id = int(box.cls[0])
-                        label = r.names[class_id].lower()
-                        if label in ["car", "bus", "truck", "motorcycle", "bicycle"]:
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv2.putText(annotated_frame, label, (x1, y1 - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                            st.session_state.live_history.append({
-                                "time": datetime.now().strftime("%H:%M:%S"),
-                                "object": label.title()
-                            })
-
-                # --- WEAPON DETECTION ---
-                results_weapon = weapon_model(frame, verbose=False, conf=0.2)
-                for r in results_weapon:
-                    for box in r.boxes:
-                        class_id = int(box.cls[0])
-                        label = r.names[class_id].upper()
-                        if label in ["GUN", "KNIFE"]:
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            color = (0, 0, 255) if label == "GUN" else (0, 255, 255)
-                            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-                            cv2.putText(annotated_frame, f"!! {label} !!", (x1, y1 - 10),
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                            st.session_state.live_history.append({
-                                "time": datetime.now().strftime("%H:%M:%S"),
-                                "object": f"THREAT: {label}"
-                            })
-                            now = datetime.now()
-                            last_time = last_threat_alert_time.get(label, datetime.min)
-                            if (now - last_time).total_seconds() > 10:
-                                last_threat_alert_time[label] = now
-                                _, buffer = cv2.imencode('.jpg', frame)
-                                st.session_state.alerts.append({
-                                    "time": now.strftime("%Y-%m-%d %H:%M:%S"),
-                                    "event": f"{label} Detected",
-                                    "screenshot": buffer.tobytes(),
-                                    "type": "threat"
+                if frame_count % 5 == 0:  # ✅ Process every 5th frame
+                    # --- VEHICLE DETECTION ---
+                    results_vehicle = vehicle_model(frame, verbose=False, conf=0.3)
+                    for r in results_vehicle:
+                        for box in r.boxes:
+                            label = r.names[int(box.cls[0])].lower()
+                            if label in ["car", "bus", "truck", "motorcycle", "bicycle"]:
+                                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                cv2.putText(annotated_frame, label, (x1, y1 - 10),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                                st.session_state.live_history.append({
+                                    "time": datetime.now().strftime("%H:%M:%S"),
+                                    "object": label.title()
                                 })
-                                st.toast(f"🚨 {label} Detected!", icon="🚨")
 
-                # --- FACE RECOGNITION (UPDATED LOGIC) ---
-                try:
-                    # DeepFace.find returns a list of dataframes. We check the first one.
-                    result_df_list = DeepFace.find(
-                        img_path=frame, db_path=DB_PATH, enforce_detection=False,
-                        silent=True, model_name='SFace', detector_backend='opencv'
-                    )
-                    
-                    # If the result list is not empty and its first dataframe is not empty, a known face was found
-                    if result_df_list and not result_df_list[0].empty:
-                        for _, row in result_df_list[0].iterrows():
-                            # Get the name from the file path
-                            identity = os.path.basename(row['identity']).split('.')[0]
-                            
-                            # Add KNOWN face to the detection history table
-                            st.session_state.live_history.append({
-                                "time": datetime.now().strftime("%H:%M:%S"),
-                                "object": f"Face: {identity.title()}"
-                            })
-
-                            # Check cooldown and create an ALERT for the known face
-                            now = datetime.now()
-                            last_time = last_threat_alert_time.get(identity, datetime.min)
-                            if (now - last_time).total_seconds() > 10: # 10-second cooldown per person
-                                last_threat_alert_time[identity] = now
-                                _, buffer = cv2.imencode('.jpg', frame)
-                                st.session_state.alerts.append({
-                                    "time": now.strftime("%Y-%m-%d %H:%M:%S"),
-                                    "event": f"Known Person: {identity.title()}",
-                                    "screenshot": buffer.tobytes(),
-                                    "type": "face"
+                    # --- WEAPON DETECTION ---
+                    results_weapon = weapon_model(frame, verbose=False, conf=0.25)
+                    for r in results_weapon:
+                        for box in r.boxes:
+                            label = r.names[int(box.cls[0])].upper()
+                            if label in ["GUN", "KNIFE"]:
+                                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                                color = (0, 0, 255) if label == "GUN" else (0, 255, 255)
+                                cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
+                                cv2.putText(annotated_frame, f"!! {label} !!", (x1, y1 - 10),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+                                st.session_state.live_history.append({
+                                    "time": datetime.now().strftime("%H:%M:%S"),
+                                    "object": f"THREAT: {label}"
                                 })
-                                st.toast(f"✅ Known Person Seen: {identity.title()}", icon="✅")
-                    else:
-                        # If no known face is found, add "Unknown Face" to the history table
-                        st.session_state.live_history.append({
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "object": "Unknown Face"
-                        })
 
-                except Exception as e:
-                    # If any error occurs during face detection (e.g., no face in frame), log it as Unknown
-                    # and print the error to the console for debugging.
-                    # print(f"DeepFace error: {e}") # Uncomment for debugging
-                    st.session_state.live_history.append({
-                        "time": datetime.now().strftime("%H:%M:%S"),
-                        "object": "Unknown Face"
-                    })
+                                now = datetime.now()
+                                last_time = last_threat_alert_time.get(label, datetime.min)
+                                if (now - last_time).total_seconds() > 10:
+                                    last_threat_alert_time[label] = now
+                                    screenshot_path = os.path.join(
+                                        SNAPSHOT_DIR, f"{label}_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
+                                    )
+                                    cv2.imwrite(screenshot_path, frame)
 
-                # --- Show annotated frame ---
+                                    conn = get_db_connection()
+                                    cursor = conn.cursor()
+                                    cursor.execute(
+                                        "INSERT INTO alerts (timestamp, object_type, camera_id, image_path) VALUES (%s, %s, %s, %s)",
+                                        (now, label, "cam0", screenshot_path)
+                                    )
+                                    conn.commit()
+                                    cursor.close()
+                                    conn.close()
+
+                    # --- FACE RECOGNITION ---
+                    try:
+                        result_df_list = DeepFace.find(
+                            img_path=frame, db_path=DB_PATH, enforce_detection=False,
+                            silent=True, model_name='SFace', detector_backend='opencv'
+                        )
+                        if result_df_list and not result_df_list[0].empty:
+                            for _, row in result_df_list[0].iterrows():
+                                identity = os.path.basename(row['identity']).split('.')[0]
+                                st.session_state.live_history.append({
+                                    "time": datetime.now().strftime("%H:%M:%S"),
+                                    "object": f"Face: {identity.title()}"
+                                })
+                                now = datetime.now()
+                                last_time = last_threat_alert_time.get(identity, datetime.min)
+                                if (now - last_time).total_seconds() > 10:
+                                    last_threat_alert_time[identity] = now
+                                    screenshot_path = os.path.join(
+                                        SNAPSHOT_DIR, f"Face_{now.strftime('%Y%m%d_%H%M%S')}.jpg"
+                                    )
+                                    cv2.imwrite(screenshot_path, frame)
+
+                                    conn = get_db_connection()
+                                    cursor = conn.cursor()
+                                    cursor.execute(
+                                        "INSERT INTO alerts (timestamp, object_type, camera_id, image_path) VALUES (%s, %s, %s, %s)",
+                                        (now, f"Face: {identity}", "cam0", screenshot_path)
+                                    )
+                                    conn.commit()
+                                    cursor.close()
+                                    conn.close()
+                    except:
+                        pass
+
+                # --- Show frame ---
                 frame_placeholder.image(annotated_frame, channels="BGR")
 
-                # --- Update real-time summary panel ---
+                # --- Summary ---
                 with summary_placeholder.container():
                     st.subheader("Recent Detections")
                     if st.session_state.live_history:
@@ -225,23 +213,14 @@ with tab1:
                         st.dataframe(df_summary.iloc[::-1], use_container_width=True, hide_index=True)
                     else:
                         st.write("Awaiting detections...")
-                    
-                    st.markdown("---")
-                    
-                    st.subheader("Live Security Alerts")
-                    if not st.session_state.alerts:
-                        st.info("No alerts recorded yet.")
-                    else:
-                        for alert in reversed(st.session_state.alerts):
-                            expander_title = f"🚨 {alert['event']} at {alert['time']}"
-                            with st.expander(expander_title):
-                                st.image(alert['screenshot'], caption=f"Detection at {alert['time']}")
+
+                time.sleep(0.02)  # ✅ allow Streamlit UI refresh
+
             cap.release()
 
     else:
-        frame_placeholder.markdown("### Stream is stopped or no valid URL.")
-        summary_placeholder.info("Start the stream to see live detections and alerts.")
-
+        frame_placeholder.markdown("### Webcam is stopped.")
+        summary_placeholder.info("Start webcam to see live detections and alerts.")
 
 # --- 2️⃣ Face Registration ---
 with tab2:
@@ -263,21 +242,19 @@ with tab2:
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getvalue())
 
-                    with st.spinner("Updating face database... This may take a moment."):
-                        pkl_file = os.path.join(DB_PATH, "representations_sface.pkl")
-                        if os.path.exists(pkl_file):
-                            os.remove(pkl_file)
-                        DeepFace.find(img_path=file_path, db_path=DB_PATH, enforce_detection=False,
-                                      silent=True, model_name='SFace', detector_backend='opencv')
+                    pkl_file = os.path.join(DB_PATH, "representations_sface.pkl")
+                    if os.path.exists(pkl_file):
+                        os.remove(pkl_file)
+                    DeepFace.find(img_path=file_path, db_path=DB_PATH, enforce_detection=False,
+                                  silent=True, model_name='SFace', detector_backend='opencv')
                     st.success(f"✅ Registered {name_input}!")
                     st.experimental_rerun()
                 except Exception as e:
-                    st.error(f"Error: Could not process image. Ensure it contains a clear face. Details: {e}")
+                    st.error(f"Error: {e}")
 
     with col2:
         st.subheader("Registered Individuals")
         image_files = [f for f in os.listdir(DB_PATH) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
-
         if not image_files:
             st.warning("No faces registered yet.")
         else:
@@ -292,17 +269,26 @@ with tab2:
                         pkl_file = os.path.join(DB_PATH, "representations_sface.pkl")
                         if os.path.exists(pkl_file):
                             os.remove(pkl_file)
-                        st.success(f"✅ Removed {file}. Database will update on next registration or app restart.")
+                        st.success(f"✅ Removed {file}")
                         st.experimental_rerun()
 
 # --- 3️⃣ Alerts Log ---
 with tab3:
-    st.header("Full Security & Activity Alerts Log")
-    st.info("This tab shows all alerts recorded during the session. For live updates, see the panel in the 'Live Detection' tab.")
-    if not st.session_state.alerts:
-        st.info("No alerts have been recorded yet.")
+    st.header("📜 Full Security & Activity Alerts Log")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT timestamp, object_type, camera_id, image_path FROM alerts ORDER BY timestamp DESC")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    if not rows:
+        st.info("No alerts recorded yet.")
     else:
-        for alert in reversed(st.session_state.alerts):
-            expander_title = f"🚨 {alert['event']} at {alert['time']}"
-            with st.expander(expander_title):
-                st.image(alert['screenshot'], caption=f"Detection at {alert['time']}")
+        for timestamp, obj_type, cam_id, img_path in rows:
+            with st.expander(f"🚨 {obj_type} at {timestamp} from {cam_id}"):
+                if os.path.exists(img_path):
+                    st.image(img_path)
+                else:
+                    st.warning("Image not found.")
