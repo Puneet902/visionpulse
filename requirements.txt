@@ -1,7 +1,11 @@
 streamlit
-opencv-python
 ultralytics
+opencv-python
 deepface
-yt-dlp
+psycopg2
+fastapi
+uvicorn
+python-multipart
 pandas
-numpy
+Pillow
+requests
