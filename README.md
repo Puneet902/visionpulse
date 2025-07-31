@@ -149,7 +149,6 @@ Navigate to the **Full Alerts Log** tab in Streamlit to see all past detections 
 ## 🛠️ Notes
 
 * Keep `lightingbest.pt` in the same folder as the app.
-* Works with USB webcam or YouTube stream URLs.
 * Face detection works best with frontal clear images.
 
 ---
