@@ -1,12 +1,14 @@
-# 🛡 visionplus Real-time Security & Surveillance
 
-This is a real-time AI security & surveillance app built with:
+# 🛡️ visionplus Real-time Security & Surveillance
 
-* YOLO (vehicle + weapon detection)
-* DeepFace (face recognition)
-* Streamlit live dashboard
-* YouTube or webcam video sources
-* Alerts & activity logging
+A real-time AI-powered security & surveillance system built using:
+
+* 🧠 YOLOv8 (vehicle + weapon detection)
+* 👤 DeepFace (face recognition)
+* 📹 Streamlit for live monitoring
+* 🔌 FastAPI backend for external integrations
+* 🗃️ PostgreSQL for alert logging
+* 🎥 Webcam / YouTube video stream support
 
 ---
 
@@ -15,9 +17,9 @@ This is a real-time AI security & surveillance app built with:
 * Python 3.8+
 * Install dependencies:
 
-  ```bash
-  pip install -r requirements.txt
-  ```
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
@@ -30,50 +32,125 @@ This app uses a custom YOLO model for weapon detection.
 [Download lightingbest.pt](https://drive.google.com/file/d/1u0_bmAhAPG8uuJ1HShgofo7-1z4gga3X/view)
 
 1. Click the link above.
-2. Click **Download** and save `lightingbest.pt` in the same directory as your Streamlit app.
+2. Click **Download** and save `lightingbest.pt` in the project folder.
 
 ---
 
-## ▶ How to Run
+## ▶️ How to Run the App
 
-1. Clone this repo:
+### Step 1: Clone the Repository
 
-   ```bash
-   git clone https://github.com/yourusername/yourrepo.git
-   cd yourrepo
-   ```
+```bash
+git clone https://github.com/Puneet902/visionpulse.git
+cd yourrepo
+```
 
-2. Install dependencies:
+### Step 2: Install Python Dependencies
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-3. Make sure `lightingbest.pt` is in the project folder.
+### Step 3: Launch the Streamlit Frontend
 
-4. Run the app:
+```bash
+streamlit run app.py
+```
 
-   ```bash
-   streamlit run your_script_name.py
-   ```
+This will open the **dashboard UI** for detection and monitoring.
 
----
+### Step 4: Launch FastAPI Backend
 
-## 👤 Face Registration
+```bash
+uvicorn main:app --reload
+```
 
-Use the **Face Registration** tab to upload known faces.
-Images will be saved in `registered_faces/`.
-
----
-
-## 🚨 Full Alerts Log
-
-Check all security alerts and detection history in the **Full Alerts Log** tab.
+This will start the backend server at `http://127.0.0.1:8000`.
 
 ---
 
-## ⚡ Notes
+## 🧠 Features
 
-* `lightingbest.pt` must be in the same folder or the app won’t detect weapons.
-* Tested with YOLOv8 + DeepFace (SFace model).
-* Supports webcam or live YouTube streams.
+* Live vehicle and weapon detection using YOLOv8
+* Real-time face recognition with DeepFace
+* Alerts auto-logged to PostgreSQL with snapshot images
+* Register known users via face upload
+* Upload alerts remotely using FastAPI
+
+---
+
+## 🗃️ PostgreSQL Database Setup
+
+### 1️⃣ Create Database
+
+```sql
+CREATE DATABASE vision_alerts;
+```
+
+### 2️⃣ Create Alerts Table
+
+```sql
+CREATE TABLE IF NOT EXISTS public.alerts
+(
+    id integer NOT NULL DEFAULT nextval('alerts_id_seq'::regclass),
+    "timestamp" timestamp without time zone,
+    object_type text COLLATE pg_catalog."default",
+    camera_id text COLLATE pg_catalog."default",
+    image_path text COLLATE pg_catalog."default",
+    CONSTRAINT alerts_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE IF EXISTS public.alerts
+    OWNER to postgres;
+```
+
+### 3️⃣ Create Users Table
+
+```sql
+CREATE TABLE IF NOT EXISTS public.users
+(
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE IF EXISTS public.users
+    OWNER to postgres;
+```
+
+### 4️⃣ Update Credentials in Code
+
+In `app.py` and `main.py`, update your PostgreSQL password:
+
+```python
+psycopg2.connect(
+    host="localhost",
+    database="vision_alerts",
+    user="postgres",
+    password="your_password_here"
+)
+```
+
+---
+
+## 🧑‍💼 Face Registration
+
+Use the **Face Registration** tab in the dashboard to upload known faces.
+They are stored in `registered_faces/`.
+
+---
+
+## 📜 Full Alerts Log
+
+Navigate to the **Full Alerts Log** tab in Streamlit to see all past detections with timestamps, object type, and camera ID.
+
+---
+
+## 🛠️ Notes
+
+* Keep `lightingbest.pt` in the same folder as the app.
+* Works with USB webcam or YouTube stream URLs.
+* Face detection works best with frontal clear images.
+
+---
+
