@@ -9,3 +9,4 @@ python-multipart
 pandas
 Pillow
 requests
+gdown
