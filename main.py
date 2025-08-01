@@ -22,7 +22,7 @@ def get_db_connection():
         host="localhost",
         database="vision_alerts",
         user="postgres",
-        password="Muralik@902"
+        password="your_password_here"
     )
 
 # 🚨 Route for uploading alerts
@@ -54,7 +54,7 @@ async def upload_alert(
 
     return {"status": "success", "message": "Alert saved"}
 
-# ✅ Route to register Firebase user email into `users` table
+# ✅ Route to register Firebase user email into users table
 @app.post("/register_user/")
 async def register_user(email: str = Form(...)):
     conn = get_db_connection()
