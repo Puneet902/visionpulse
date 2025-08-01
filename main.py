@@ -4,11 +4,9 @@ from datetime import datetime
 import os
 import shutil
 import psycopg2
-import gdown
 
 app = FastAPI()
 
-# Allow CORS for all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,33 +15,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create directory for alerts if it doesn't exist
 os.makedirs("alert_images", exist_ok=True)
-
-# ✅ Function to auto-download model if missing
-def download_model_if_needed():
-    model_path = "lightingbest.pt"
-    if not os.path.exists(model_path):
-        print("🔽 Downloading lightingbest.pt from Google Drive...")
-        url = "https://drive.google.com/uc?id=1u0_bmAhAPG8uuJ1HShgofo7-1z4gga3X"
-        gdown.download(url, output=model_path, quiet=False)
-        print("✅ Download complete!")
-
-# ✅ Run download function on startup
-download_model_if_needed()
-
-# ✅ Database connection helper
 
 def get_db_connection():
     return psycopg2.connect(
-        host=os.getenv("PGHOST"),
-        database=os.getenv("PGDATABASE"),
-        user=os.getenv("PGUSER"),
-        password=os.getenv("PGPASSWORD")
+        host="localhost",
+        database="vision_alerts",
+        user="postgres",
+        password="your_password_here"
     )
 
-
-# 🚨 Endpoint to upload alert with optional image
+# 🚨 Route for uploading alerts
 @app.post("/upload_alert/")
 async def upload_alert(
     timestamp: str = Form(...),
@@ -72,13 +54,13 @@ async def upload_alert(
 
     return {"status": "success", "message": "Alert saved"}
 
-# ✅ Endpoint to register a Firebase user
+# ✅ Route to register Firebase user email into users table
 @app.post("/register_user/")
 async def register_user(email: str = Form(...)):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Create users table if not exists
+    # Ensure users table exists
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
