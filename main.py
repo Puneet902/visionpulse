@@ -33,13 +33,15 @@ def download_model_if_needed():
 download_model_if_needed()
 
 # ✅ Database connection helper
+
 def get_db_connection():
     return psycopg2.connect(
-        host="localhost",
-        database="vision_alerts",
-        user="postgres",
-        password="Muralik@902"
+        host=os.getenv("PGHOST"),
+        database=os.getenv("PGDATABASE"),
+        user=os.getenv("PGUSER"),
+        password=os.getenv("PGPASSWORD")
     )
+
 
 # 🚨 Endpoint to upload alert with optional image
 @app.post("/upload_alert/")
