@@ -7,7 +7,7 @@ from deepface import DeepFace
 import pandas as pd
 import psycopg2
 import time
-
+from datetime import datetime
 # --- Page Config and Styling ---
 st.set_page_config(page_title="OASIS Edge AI Unit", layout="wide")
 
@@ -40,13 +40,15 @@ def get_db_connection():
         host="localhost",
         database="vision_alerts",
         user="postgres",
-        password="your_password_here"
+        password="your_password"
     )
 
 # --- Ensure alerts table exists ---
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Create alerts table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alerts (
             id SERIAL PRIMARY KEY,
@@ -56,9 +58,21 @@ def init_db():
             image_path TEXT
         )
     """)
+
+    # Create email_user table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS email_user (
+            id SERIAL PRIMARY KEY,
+            email TEXT NOT NULL,
+            report_path TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     cursor.close()
     conn.close()
+
 
 init_db()
 
@@ -78,7 +92,8 @@ def load_models():
 vehicle_model, weapon_model = load_models()
 
 # --- Tabs ---
-tab1, tab2, tab3 = st.tabs(["🔴 Live Detection", "👤 Face Registration", "🚨 Full Alerts Log"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔴 Live Detection", "👤 Face Registration", "🚨 Full Alerts Log", "📧 Report"])
+
 
 # --- 1️⃣ Live Detection ---
 with tab1:
@@ -292,3 +307,102 @@ with tab3:
                     st.image(img_path)
                 else:
                     st.warning("Image not found.")
+                    
+                    
+
+with tab4:
+    st.header("📧 Generate & Send Security Report")
+    email_input = st.text_input("Enter recipient's email:")
+
+    if st.button("📤 Generate and Send Report", disabled=not email_input):
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            report_path = f"Security_Report_{email_input.replace('@', '_')}.pdf"
+            # ✅ Insert email into 'users' table if not exists
+            cursor.execute("INSERT INTO email_user (email, report_path) VALUES (%s, %s)", (email_input, report_path))
+
+            conn.commit()
+
+            # ✅ Fetch alerts
+            cursor.execute("SELECT timestamp, object_type, camera_id, image_path FROM alerts ORDER BY timestamp DESC")
+            alerts = cursor.fetchall()
+
+            if not alerts:
+                st.warning("No alerts to include in the report.")
+            else:
+                
+
+                from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+                from reportlab.lib.styles import getSampleStyleSheet
+                from reportlab.lib.pagesizes import A4
+                from reportlab.lib.units import inch
+                import smtplib
+                from email.message import EmailMessage
+                import mimetypes
+                import os
+
+                # ✅ Generate PDF report
+               
+                doc = SimpleDocTemplate(report_path, pagesize=A4)
+                styles = getSampleStyleSheet()
+                story = [Paragraph("Security Alert Report", styles['Title']), Spacer(1, 0.2 * inch)]
+
+                for alert in alerts:
+                    timestamp, object_type, camera_id, image_path = alert
+                    story.append(Paragraph(f"<b>Time:</b> {timestamp}", styles['Normal']))
+                    story.append(Paragraph(f"<b>Detected:</b> {object_type}", styles['Normal']))
+                    story.append(Paragraph(f"<b>Camera:</b> {camera_id}", styles['Normal']))
+                    if os.path.exists(image_path):
+                        story.append(Image(image_path, width=4 * inch, height=3 * inch))
+                    story.append(Spacer(1, 0.3 * inch))
+
+                doc.build(story)
+
+                # ✅ Send email
+                msg = EmailMessage()
+                msg["Subject"] = f"Security Alert Report - {current_time}"
+                msg["From"] = "your_email@example.com"
+                msg["To"] = email_input
+
+                email_body = f"""
+Hi,
+
+Please find attached the latest security alert report.
+
+Report Generated on: {current_time}
+Total Alerts: {len(alerts)}
+
+Stay safe,
+Your Surveillance System
+"""
+                msg.set_content(email_body)
+
+                with open(report_path, "rb") as f:
+                    file_data = f.read()
+                    file_name = os.path.basename(report_path)
+                    mime_type, _ = mimetypes.guess_type(file_name)
+                    main_type, sub_type = mime_type.split("/")
+                    msg.add_attachment(file_data, maintype=main_type, subtype=sub_type, filename=file_name)
+
+                with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+                    smtp.login("visionpluse615@gmail.com", "iyru fgos ahcg qgak")  # Replace securely
+                    smtp.send_message(msg)
+
+                st.success("✅ Report generated and sent successfully!")
+
+                # ✅ Save report metadata in DB
+                cursor.execute("""
+                    INSERT INTO user_reports (email, report_path)
+                    VALUES (%s, %s)
+                """, (email_input, report_path))
+                conn.commit()
+
+                st.success("📁 Report saved in database.")
+
+            cursor.close()
+            conn.close()
+
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
