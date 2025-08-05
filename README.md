@@ -107,12 +107,13 @@ ALTER TABLE IF EXISTS public.alerts
 ### 3️⃣ Create Users Table
 
 ```sql
-CREATE TABLE user_reports (
+CREATE TABLE email_user (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
-    report_path VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    report_path TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 
 ```
 
