@@ -107,15 +107,13 @@ ALTER TABLE IF EXISTS public.alerts
 ### 3️⃣ Create Users Table
 
 ```sql
-CREATE TABLE IF NOT EXISTS public.users
-(
+CREATE TABLE user_reports (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    email VARCHAR(255) NOT NULL,
+    report_path VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-ALTER TABLE IF EXISTS public.users
-    OWNER to postgres;
 ```
 
 ### 4️⃣ Update Credentials in Code
