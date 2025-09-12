@@ -1,111 +1,89 @@
+# 🛡️ VisionPlus – Real-time Security & Surveillance  
 
-# 🛡️ visionplus Real-time Security & Surveillance
+VisionPlus is an AI-powered real-time security and surveillance system designed for **weapon detection, face recognition, and automated alerting**.  
+It processes CCTV and live camera feeds, detects threats, and instantly generates alerts with snapshots.  
+The system also logs alerts in a PostgreSQL database and sends automated reports to admins via email.  
 
-A real-time AI-powered security & surveillance system built using:
-
-* 🧠 YOLOv8 (vehicle + weapon detection)
-* 👤 DeepFace (face recognition)
-* 📹 Streamlit for live monitoring
-* 🔌 FastAPI backend for external integrations
-* 🗃️ PostgreSQL for alert logging
-* 🎥 Webcam / YouTube video stream support
+![Dashboard Screenshot](images/dashboard1.png)
+![Dashboard Screenshot](images/dashboard2.png)
 
 ---
 
-## 📦 Requirements
+## ✨ Key Features  
+- 🔫 **Weapon Detection** – Real-time detection using YOLOv8  
+- 👤 **Face Recognition** – DeepFace for recognizing and verifying individuals  
+- 🚗 **Vehicle Detection** – Detects vehicles from CCTV/live streams  
+- 📹 **Live Monitoring Dashboard** – Streamlit-based real-time monitoring  
+- 🔌 **Backend Integration** – FastAPI for external alert/report services  
+- 🗃️ **Database Logging** – PostgreSQL storage with snapshot support  
+- 📧 **Email Notifications** – Sends automated reports to registered admins  
 
-* Python 3.8+
-* Install dependencies:
+---
 
+## ⚙️ Requirements  
+- Python 3.8+  
+- Install dependencies:  
 ```bash
 pip install -r requirements.txt
 ```
 
 ---
 
-## 📥 Download `lightingbest.pt`
+## 📥 Model Download (`lightingbest.pt`)  
+VisionPlus uses a custom YOLOv8 model for weapon detection.  
 
-This app uses a custom YOLO model for weapon detection.
+👉 [Download lightingbest.pt](https://drive.google.com/file/d/1u0_bmAhAPG8uuJ1HShgofo7-1z4gga3X/view)  
 
-👉 **Download manually from Google Drive:**
-
-[Download lightingbest.pt](https://drive.google.com/file/d/1u0_bmAhAPG8uuJ1HShgofo7-1z4gga3X/view)
-
-1. Click the link above.
-2. Click **Download** and save `lightingbest.pt` in the project folder.
+Save the file in the project folder.  
 
 ---
 
-## ▶️ How to Run the App
+## ▶️ How to Run  
 
-### Step 1: Clone the Repository
-
+### 1️⃣ Clone the Repository  
 ```bash
 git clone https://github.com/Puneet902/visionpulse.git
-cd yourrepo
+cd visionpulse
 ```
 
-### Step 2: Install Python Dependencies
-
+### 2️⃣ Install Dependencies  
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 3: Launch the Streamlit Frontend
-
+### 3️⃣ Launch Streamlit Dashboard  
 ```bash
 streamlit run app.py
 ```
+Opens the **real-time monitoring dashboard**.  
 
-This will open the **dashboard UI** for detection and monitoring.
-
-### Step 4: Launch FastAPI Backend
-
+### 4️⃣ Start FastAPI Backend  
 ```bash
 uvicorn main:app --reload
 ```
-
-This will start the backend server at `http://127.0.0.1:8000`.
-
----
-
-## 🧠 Features
-
-* Live vehicle and weapon detection using YOLOv8
-* Real-time face recognition with DeepFace
-* Alerts auto-logged to PostgreSQL with snapshot images
-* Register known users via face upload
-* Upload alerts remotely using FastAPI
+Runs backend services at: `http://127.0.0.1:8000`  
 
 ---
 
-## 🗃️ PostgreSQL Database Setup
+## 🗃️ Database Setup (PostgreSQL)  
 
-### 1️⃣ Create Database
-
+### Create Database  
 ```sql
 CREATE DATABASE vision_alerts;
 ```
 
-### 2️⃣ Create Alerts Table
-
+### Create Alerts Table  
 ```sql
-CREATE TABLE IF NOT EXISTS public.alerts
-(
-    id integer NOT NULL DEFAULT nextval('alerts_id_seq'::regclass),
-    "timestamp" timestamp without time zone,
-    object_type text COLLATE pg_catalog."default",
-    camera_id text COLLATE pg_catalog."default",
-    image_path text COLLATE pg_catalog."default",
-    CONSTRAINT alerts_pkey PRIMARY KEY (id)
+CREATE TABLE IF NOT EXISTS alerts (
+    id SERIAL PRIMARY KEY,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    object_type TEXT,
+    camera_id TEXT,
+    image_path TEXT
 );
-
-ALTER TABLE IF EXISTS public.alerts
-    OWNER to postgres;
 ```
 
-### 3️⃣ Create Users Table
-
+### Create Users Table  
 ```sql
 CREATE TABLE email_user (
     id SERIAL PRIMARY KEY,
@@ -113,14 +91,10 @@ CREATE TABLE email_user (
     report_path TEXT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
-
 ```
 
-### 4️⃣ Update Credentials in Code
-
-In `app.py` and `main.py`, update your PostgreSQL password:
-
+### Update Credentials  
+In `app.py` and `main.py`:  
 ```python
 psycopg2.connect(
     host="localhost",
@@ -132,23 +106,28 @@ psycopg2.connect(
 
 ---
 
-## 🧑‍💼 Face Registration
-
-Use the **Face Registration** tab in the dashboard to upload known faces.
-They are stored in `registered_faces/`.
-
----
-
-## 📜 Full Alerts Log
-
-Navigate to the **Full Alerts Log** tab in Streamlit to see all past detections with timestamps, object type, and camera ID.
+## 🧑‍💼 Face Registration  
+Upload known faces in the **Face Registration tab** of the dashboard.  
+Stored inside `registered_faces/`.  
 
 ---
 
-## 🛠️ Notes
+## 📜 Alerts Log  
+View full detection history (with timestamps, object type, and camera ID) under the **Alerts Log** tab in the dashboard.  
 
-* Keep `lightingbest.pt` in the same folder as the app.
-* Face detection works best with frontal clear images.
+![Alerts Log](images/alerts.png)
 
 ---
 
+## 🛠️ Notes  
+- Keep `lightingbest.pt` in the same folder as `app.py`.  
+- Face detection works best with clear frontal images.  
+
+---
+
+## 📌 Tech Stack  
+- **AI/ML:** YOLOv8, DeepFace, OpenCV  
+- **Frontend:** Streamlit  
+- **Backend:** FastAPI  
+- **Database:** PostgreSQL  
+- **Language:** Python  
