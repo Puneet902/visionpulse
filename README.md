@@ -3,9 +3,9 @@
 VisionPlus is an AI-powered real-time security and surveillance system designed for **weapon detection, face recognition, and automated alerting**.  
 It processes CCTV and live camera feeds, detects threats, and instantly generates alerts with snapshots.  
 The system also logs alerts in a PostgreSQL database and sends automated reports to admins via email.  
+ <img width="858" height="469" alt="dashboard2" src="https://github.com/user-attachments/assets/9ecea7d6-464c-4b77-9840-111c53511e9f" /> <img width="897" height="481" alt="dashboard1" src="https://github.com/user-attachments/assets/d90e7314-6af8-43e7-a79e-1106c88f695c" />
 
-![Dashboard Screenshot](images/dashboard1.png)
-![Dashboard Screenshot](images/dashboard2.png)
+
 
 ---
 
@@ -114,8 +114,8 @@ Stored inside `registered_faces/`.
 
 ## 📜 Alerts Log  
 View full detection history (with timestamps, object type, and camera ID) under the **Alerts Log** tab in the dashboard.  
+<img width="900" height="469" alt="alerts" src="https://github.com/user-attachments/assets/06527525-ddd4-4dd4-80e0-73029c506feb" />
 
-![Alerts Log](images/alerts.png)
 
 ---
 
