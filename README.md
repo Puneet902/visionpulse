@@ -129,4 +129,11 @@ View full detection history (with timestamps, object type, and camera ID) under 
 - **Frontend:** Streamlit  
 - **Backend:** FastAPI  
 - **Database:** PostgreSQL  
-- **Language:** Python  
+- **Language:** Python
+## 👥 Team
+
+- **Boina Puneet Vaishnav**  
+  GitHub: [@Puneet902](https://github.com/Puneet902)
+
+- **Sandana Sureshvaran**  
+  GitHub: [@sandana1918](https://github.com/sandana1918)
